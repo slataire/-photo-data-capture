@@ -10,16 +10,17 @@ st.title("📸 Photo Data Capture")
 
 # === Initialize session state ===
 for key in [
-    "photo_ready", "photo_buffer", "photo_filename", 
+    "photo_ready", "photo_buffer", "photo_filename",
     "df", "columns", "image_data"
 ]:
     if key not in st.session_state:
         st.session_state[key] = None
 
+# === Set up image directory ===
 IMAGE_DIR = "images"
 os.makedirs(IMAGE_DIR, exist_ok=True)
 
-# === Step 1: Choose how to start ===
+# === Step 1: Choose data source ===
 st.info("Start by uploading a CSV or defining your own data fields.")
 input_method = st.radio("Input method:", ["📁 Upload CSV", "🛠️ Define fields manually"])
 
@@ -46,21 +47,18 @@ elif input_method == "🛠️ Define fields manually":
         st.session_state["columns"] = columns
         st.success(f"Defined fields: {', '.join(columns)}")
 
-# === Step 2: Photo Capture + Preview ===
-st.subheader("Step 1: Take or Upload a Photo")
+# === Step 2: Photo capture ===
+st.subheader("Step 1: Capture or Upload a Photo")
 
 if st.session_state["image_data"] is None:
-    col1, col2 = st.columns(2)
-    with col1:
-        camera = st.camera_input("Take a photo")
-    with col2:
-        upload = st.file_uploader("Or upload from device", type=["jpg", "jpeg", "png"])
+    photo_input = st.camera_input("📷 Take a photo")
+    upload_input = st.file_uploader("Or upload from your device", type=["jpg", "jpeg", "png"])
 
-    if camera or upload:
-        st.session_state["image_data"] = camera or upload
+    if photo_input or upload_input:
+        st.session_state["image_data"] = photo_input or upload_input
         st.experimental_rerun()
 
-# === Step 3: Large Preview + Option to Retake ===
+# === Step 3: Preview + Retake ===
 if st.session_state["image_data"] is not None:
     st.image(st.session_state["image_data"], caption="Captured Photo", use_container_width=True)
     col1, col2 = st.columns(2)
@@ -69,11 +67,11 @@ if st.session_state["image_data"] is not None:
             st.session_state["image_data"] = None
             st.experimental_rerun()
     with col2:
-        st.success("Photo captured. Proceed to fill in data.")
+        st.success("Photo captured. Continue below to enter data.")
 
-# === Step 4: Data Entry Form ===
+# === Step 4: Metadata entry form ===
 if st.session_state["image_data"] is not None and st.session_state["columns"]:
-    st.subheader("Step 2: Enter Data for Photo")
+    st.subheader("Step 2: Enter Metadata for Photo")
     entry_data = {}
 
     with st.form("entry_form"):
@@ -98,7 +96,7 @@ if st.session_state["image_data"] is not None and st.session_state["columns"]:
                 ignore_index=True
             )
 
-            # Prepare download buffer
+            # Create download buffer for photo
             buffer = BytesIO()
             image.save(buffer, format="JPEG")
             buffer.seek(0)
@@ -106,12 +104,12 @@ if st.session_state["image_data"] is not None and st.session_state["columns"]:
             st.session_state["photo_buffer"] = buffer
             st.session_state["photo_filename"] = filename
 
-            # Reset image data
+            # Reset photo for next entry
             st.session_state["image_data"] = None
 
-            st.success("Entry added. Scroll down to download.")
+            st.success("✅ Entry added. Scroll down to download files.")
 
-# === Step 5: Photo + CSV Downloads ===
+# === Step 5: Photo download button ===
 if st.session_state.get("photo_ready"):
     st.download_button(
         label="📥 Download Photo",
@@ -121,12 +119,13 @@ if st.session_state.get("photo_ready"):
     )
     st.session_state["photo_ready"] = False
 
-# === Step 6: Show Table + CSV Download ===
+# === Step 6: CSV and data table ===
 df = st.session_state.get("df", None)
 if df is not None and not df.empty:
     st.subheader("📄 Updated Data Table")
     st.dataframe(df)
 
+    # CSV download
     csv_buffer = BytesIO()
     df.to_csv(csv_buffer, index=False)
     csv_buffer.seek(0)
@@ -138,8 +137,10 @@ if df is not None and not df.empty:
         mime="text/csv"
     )
 
+    # Most recent image
     st.subheader("🖼️ Most Recent Image")
     last_file = df.iloc[-1]["image_filename"]
     image_path = os.path.join(IMAGE_DIR, last_file)
     if os.path.exists(image_path):
         st.image(image_path, caption=last_file, use_container_width=True)
+
