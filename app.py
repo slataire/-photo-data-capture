@@ -5,37 +5,46 @@ from PIL import Image
 from datetime import datetime
 from io import BytesIO
 
-# App title
 st.set_page_config(page_title="Photo Data Capture")
 st.title("📸 Photo Data Capture")
-st.info("Upload a CSV file from your phone, Google Drive, or OneDrive to start.")
 
-# Image directory (used for session, not persistent in cloud)
 IMAGE_DIR = "images"
 os.makedirs(IMAGE_DIR, exist_ok=True)
 
-# Step 1: Upload CSV file
-uploaded_csv = st.file_uploader("Upload your CSV file", type=["csv"])
+# Choose input method
+st.info("Start by uploading a CSV or defining your own data fields.")
+option = st.radio("Choose input method:", ["📁 Upload CSV", "🛠️ Define fields manually"])
 
-if uploaded_csv:
-    # Load CSV into DataFrame
-    df = pd.read_csv(uploaded_csv)
+df = None
+columns = []
 
-    # Add 'image_filename' column if missing
-    if "image_filename" not in df.columns:
-        df["image_filename"] = ""
+# === Option 1: Upload CSV ===
+if option == "📁 Upload CSV":
+    uploaded_csv = st.file_uploader("Upload your CSV file", type=["csv"])
+    if uploaded_csv:
+        df = pd.read_csv(uploaded_csv)
+        if "image_filename" not in df.columns:
+            df["image_filename"] = ""
+        columns = [col for col in df.columns if col != "image_filename"]
+        st.success(f"Loaded CSV with fields: {', '.join(columns)}")
 
-    # Use all columns except image reference for data entry
-    columns = [col for col in df.columns if col != "image_filename"]
-    st.success("CSV loaded with fields: " + ", ".join(columns))
+# === Option 2: Define Fields Manually ===
+elif option == "🛠️ Define fields manually":
+    st.markdown("Enter custom field names (e.g., Sample_ID, Depth, Notes)")
+    field_input = st.text_area("One field per line:", "Sample_ID\nDepth\nNotes")
+    columns = [f.strip() for f in field_input.split("\n") if f.strip()]
+    if columns:
+        df = pd.DataFrame(columns=columns + ["image_filename"])
+        st.success(f"Defined fields: {', '.join(columns)}")
 
-    # Step 2: Data entry form
+# === Data Entry Form ===
+if df is not None and columns:
     st.header("➕ Add a New Entry")
     entry_data = {}
 
     with st.form("entry_form"):
         for col in columns:
-            entry_data[col] = st.text_input(col)
+            entry_data[col] = st.text_input(f"{col}")
 
         photo = st.camera_input("Take a photo (or upload below)")
         upload = st.file_uploader("Or upload a photo", type=["jpg", "jpeg", "png"])
@@ -51,29 +60,32 @@ if uploaded_csv:
                 filename = f"{timestamp}.jpg"
                 filepath = os.path.join(IMAGE_DIR, filename)
 
-                # Save photo to server
+                # Save image to server
                 image = Image.open(image_data)
                 image.save(filepath)
 
-                # Append new row
+                # Add new row
                 new_row = entry_data.copy()
                 new_row["image_filename"] = filename
                 df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
                 st.success("Entry added!")
 
-                # Offer photo download
-                img_buffer = BytesIO()
-                image.save(img_buffer, format="JPEG")
-                img_buffer.seek(0)
+                # Offer image download
+                try:
+                    img_buffer = BytesIO()
+                    image.save(img_buffer, format="JPEG")
+                    img_buffer.seek(0)
 
-                st.download_button(
-                    label="📥 Download Photo",
-                    data=img_buffer,
-                    file_name=filename,
-                    mime="image/jpeg"
-                )
+                    st.download_button(
+                        label="📥 Download Photo",
+                        data=img_buffer,
+                        file_name=filename,
+                        mime="image/jpeg"
+                    )
+                except Exception as e:
+                    st.warning(f"Could not offer photo download: {e}")
 
-    # Step 3: Show table and offer CSV download
+    # Display table and CSV download
     st.subheader("📄 Updated Data Table")
     st.dataframe(df)
 
@@ -88,10 +100,10 @@ if uploaded_csv:
         mime="text/csv"
     )
 
-    # Step 4: Show most recent image
-    st.subheader("🖼️ Most Recent Image")
+    # Show last photo
+    st.subheader("🖼️ Last Image")
     if not df.empty:
-        last_filename = df.iloc[-1]["image_filename"]
-        image_path = os.path.join(IMAGE_DIR, last_filename)
+        last_file = df.iloc[-1]["image_filename"]
+        image_path = os.path.join(IMAGE_DIR, last_file)
         if os.path.exists(image_path):
-            st.image(image_path, caption=last_filename, use_column_width=True)
+            st.image(image_path, caption=last_file, use_column_width=True)
