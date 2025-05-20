@@ -16,7 +16,7 @@ for key in [
     if key not in st.session_state:
         st.session_state[key] = None
 
-# === Set up image directory ===
+# === Set up image directory (for local dev use) ===
 IMAGE_DIR = "images"
 os.makedirs(IMAGE_DIR, exist_ok=True)
 
@@ -56,7 +56,7 @@ if st.session_state["image_data"] is None:
 
     if photo_input or upload_input:
         st.session_state["image_data"] = photo_input or upload_input
-        st.experimental_rerun()
+        st.rerun()
 
 # === Step 3: Preview + Retake ===
 if st.session_state["image_data"] is not None:
@@ -65,7 +65,7 @@ if st.session_state["image_data"] is not None:
     with col1:
         if st.button("🔁 Retake Photo"):
             st.session_state["image_data"] = None
-            st.experimental_rerun()
+            st.rerun()
     with col2:
         st.success("Photo captured. Continue below to enter data.")
 
@@ -143,4 +143,3 @@ if df is not None and not df.empty:
     image_path = os.path.join(IMAGE_DIR, last_file)
     if os.path.exists(image_path):
         st.image(image_path, caption=last_file, use_container_width=True)
-
